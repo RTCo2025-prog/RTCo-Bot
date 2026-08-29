@@ -1,16 +1,16 @@
 import os
 import threading
+import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from google import genai
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
 # 1. إعداد المفاتيح
 TELEGRAM_BOT_TOKEN = "8624313127:AAHtPRy05UNfL5_6Cv1ySiqfcT5eqRCTks0"
-# المفتاح الكامل المنسوخ من شاشتك
-GEMINI_API_KEY = "AQ.Ab8RN6JrSt2als432M6wZqQX2q6F2KBUJvCKF3QNtFquKMXzbw"
+# انسخ المفتاح كاملاً من الصورة هنا
+GEMINI_API_KEY = "AQ.Ab8RN6IAm6jqbKTM3Omz16-hwFinws_7dhKs0rhZRRfKgVVmBg"
 
-# 2. الهوية والتعليمات الرسمية
+# 2. الهوية ونظام التعليمات للسكرتيرة
 SYSTEM_INSTRUCTION = """
 # الهوية والدور الأساسي
 أنتِ السكرتيرة التنفيذية والممثلة الرقمية الرسمية لـ "شركة البرج المتألق للمقاولات العامة والتجارة العامة والنقل العام والاستثمارات العقارية".
@@ -64,23 +64,48 @@ SYSTEM_INSTRUCTION = """
 ---
 
 # مسار المحادثة والتعامل مع العميل (Workflow)
-1. الترحيب وتحديد القسم:
-   - الترحيب بلباقة وأسلوب أنثوي راقٍ وسؤال العميل عن الخدمة أو القسم المطلوب.
-2. التوضيح وجمع البيانات:
-   - بعد الاستماع لاحتياج العميل، جمع بياناته بلطف لترتيب التواصل المباشر مع المختصين في الإدارة:
-   (الاسم الكريم، رقم الهاتف أو الواتساب، المحافظة/الموقع، ونبذة مختصرة عن الطلب).
-3. تزويد العميل بالقنوات الرسمية:
-   - عند رغبة العميل بالتواصل المباشر، مشاركة أرقام الهواتف أو الروابط الرسمية المناسبة لطلبه.
+1. الترحيب وتحديد القسم المطلوب.
+2. الاستماع لاحتياج العميل بلطف وجمع بياناته (الاسم، رقم الهاتف، المحافظة، تفاصيل الطلب).
+3. تزويد العميل بالقنوات الرسمية عند الحاجة.
 
 ---
 
-# الضوابط والقيود المهنية (Strict Guardrails)
-- عدم إعطاء أسعار نهائية أو مبالغ قطعية في الدردشة؛ توضيح أن التسعير الدقيق يتطلب كشفاً هندسياً/فنياً من الإدارة المختصة.
+# الضوابط والقيود المهنية
+- عدم إعطاء أسعار نهائية قطعية والتأكيد على ضرورة الكشف الهندسي/الفني من الإدارة.
 - الحفاظ التام على خصوصية وسرية بيانات المتصلين.
 """
 
-# 3. إعداد العميل الرسمي
-client = genai.Client(api_key=GEMINI_API_KEY)
+def generate_gemini_reply(prompt: str) -> str:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "system_instruction": {
+            "parts": [{"text": SYSTEM_INSTRUCTION}]
+        },
+        "contents": [
+            {
+                "parts": [{"text": prompt}]
+            }
+        ]
+    }
+    
+    res = requests.post(url, headers=headers, json=payload, timeout=30)
+    if res.status_code == 200:
+        data = res.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    else:
+        # محاولة عبر مسار الـ Authorization Header لدعم الـ Auth Keys
+        auth_headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {GEMINI_API_KEY}"
+        }
+        alt_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+        res_auth = requests.post(alt_url, headers=auth_headers, json=payload, timeout=30)
+        if res_auth.status_code == 200:
+            data = res_auth.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        
+        return f"عذراً، حدث خطأ: {res.text}"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
@@ -96,38 +121,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=user_text,
-            config={
-                "system_instruction": SYSTEM_INSTRUCTION
-            }
-        )
-        await update.message.reply_text(response.text)
-    except Exception as e:
-        await update.message.reply_text(
-            f"عذراً، حدث خطأ: {e}"
-        )
+    bot_reply = generate_gemini_reply(user_text)
+    await update.message.reply_text(bot_reply)
 
-# خادم وهمي لإبقاء الخدمة حية على Render
-class HealthCheckHandler(BaseHTTPRequestHandler):
+# سيرفر وهمي لإبقاء التطبيق شغالاً على Render
+class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header('Content-type', 'text/plain')
         self.end_headers()
         self.wfile.write(b"OK")
 
-def start_server():
+def start_health_server():
     port = int(os.environ.get("PORT", 10000))
     try:
-        server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+        server = HTTPServer(("0.0.0.0", port), HealthHandler)
         server.serve_forever()
     except Exception:
         pass
 
 if __name__ == '__main__':
-    threading.Thread(target=start_server, daemon=True).start()
+    threading.Thread(target=start_health_server, daemon=True).start()
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
