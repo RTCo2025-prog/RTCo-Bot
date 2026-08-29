@@ -21,12 +21,12 @@ def get_main_keyboard():
             InlineKeyboardButton("🏢 الاستثمارات العقارية", callback_data="dept_realestate")
         ],
         [
-            InlineKeyboardButton("📦 التجارة العامة", callback_data="dept_trade"),
-            InlineKeyboardButton("🚚 النقل واللوجستيات", callback_data="dept_transport")
+            InlineKeyboardButton("📦 التجارة العامة والتوريد", callback_data="dept_trade"),
+            InlineKeyboardButton("🚚 النقل والخدمات اللوجستية", callback_data="dept_transport")
         ],
         [
-            InlineKeyboardButton("📞 أرقام الهواتف والتواصل", callback_data="dept_contact"),
-            InlineKeyboardButton("🌐 منصاتنا الرسمية", callback_data="dept_social")
+            InlineKeyboardButton("📞 أرقام الهواتف المباشرة", callback_data="dept_contact"),
+            InlineKeyboardButton("🌐 منصات التواصل والموقع", callback_data="dept_social")
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -37,11 +37,33 @@ def get_back_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# 3. توجيهات الذكاء الاصطناعي
+# 3. توجيهات وهوية السكرتيرة الذكية التفصيلية
 SYSTEM_INSTRUCTION = """
-أنتِ السكرتيرة التنفيذية لـ "شركة البرج المتألق للمقاولات العامة والتجارة العامة والنقل العام والاستثمارات العقارية".
-أسلوبكِ: أنثوي، لبق، راقٍ بلهجة عراقية مهذبة ومختصرة جداً (خير الكلام ما قل ودل).
-أجيبي باللغة العربية حصراً في حدود سطرين فقط، ووجّهي الزبون بلطف لترك اسمه ورقمه أو التواصل المباشر مع الإدارة عند الحاجة.
+# الهوية والدور الأساسي
+أنتِ السكرتيرة التنفيذية والمستشارة الرقمية لـ "شركة البرج المتألق للمقاولات العامة والتجارة العامة والنقل العام والاستثمارات العقارية".
+أسلوبكِ: أنثوي، لبق، راقٍ، مهذب جداً، وواثق، وتتحدثين بلهجة عراقية محترمة وبيئة أعمال راقية (مثل: "يا أهلاً وسهلاً بحضرتك"، "نورتنا وحياك الله"، "تدلل/تدللين"، "يسعدنا جداً نخدمك").
+
+---
+
+# سياسة الرد والشرح للزبون (مهم جداً):
+- لا تكتفي بكلمات عامة أو إحالة الزبون للاتصال مباشرة؛ بل قدّمي شرحاً وافياً ومفيداً يشرح إمكانيات الشركة وطريقة العمل في النقطة التي يسأل عنها.
+- إذا سأل عن البناء أو المقاولات: وضّحي أن الشركة تنفذ الهيكل الأسود، التشطيبات الكاملة (تسليم مفتاح)، الديكورات الحديثة، مع تصاميم معمارية وإشراف هندسي يومي وضمان جودة.
+- إذا سأل عن الاستثمار العقاري: وضّحي أن الشركة تقدم استشارات وتوفر فرصاً وأراضي وعقارات ذات عائد مجدٍ وتطوير عقاري آمن.
+- إذا سأل عن التجارة والتوريد: اشرحي قدرة الشركة على توفير المواد الإنشائية والبضائع للشركات والمشاريع بأسعار تنافسية وسلاسل إمداد موثوقة.
+- إذا سأل عن النقل: وضّحي توفير حلول النقل البري وإدارة الشحنات والأساطيل بأمان والتزام بالوقت.
+- بالنسبة للأسعار: اشرحي العوامل التي يعتمد عليها السعر (المساحة، نوع المواد، المواصفات المطلوبة)، واقترحي عليه تزويدك بتفاصيل مشروعه، أو أخذ رقمه واسمه ليقوم المهندس/المختص بالتواصل معه وتقديم دراسة وكشف موقعي دقيق.
+
+---
+
+# بيانات وقنوات الشركة الرسمية:
+- الهواتف: 009647868006699 | 009647737006699
+- هاتف الإدارة: 07805509298
+- الموقع: www.alburjmutalaliq.co
+- الإيميل: RTCo2025@gmail.com
+- تيليجرام: https://t.me/RTCo2025
+- إنستغرام: https://www.instagram.com/rtco2025
+- تيك توك: https://www.tiktok.com/@rtco2025
+- فيسبوك: https://www.facebook.com/rtco2025
 """
 
 def clean_think_tags(text: str) -> str:
@@ -60,18 +82,18 @@ def get_active_model():
 
 CURRENT_MODEL = get_active_model()
 
-# 4. معالجة أمر البداية
+# 4. أمر البداية
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
-        "أهلاً وسهلاً بحضرتك نورتنا بشركة **البرج المتألق** ✨\n\n"
-        "يسعدنا خدمتك، يرجى اختيار القسم المطلوب أو كتابة استفسارك مباشرة:"
+        "أهلاً وسهلاً بحضرتك نورتنا بشركة **البرج المتألق** للمقاولات العامة والاستثمارات العقارية والتجارة والنقل ✨\n\n"
+        "تسعدني خدمتك والإجابة عن كل استفساراتك. تگدر تختار أحد الأقسام من الأزرار أدناه، أو تكتب سؤالك بالتفصيل هنا مباشرة 👇"
     )
     if update.message:
         await update.message.reply_text(welcome_text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
     elif update.callback_query:
         await update.callback_query.message.reply_text(welcome_text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
 
-# 5. معالجة الضغط على الأزرار
+# 5. معالجة الأزرار
 async def handle_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -85,38 +107,49 @@ async def handle_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if data == "dept_contracting":
         text_response = (
-            "🏗️ **قسم المقاولات العامة والإنشاءات**\n\n"
-            "• تنفيذ أعمال البناء والتشطيبات المتكاملة وفق أحدث التصاميم.\n"
-            "• إشراف هندسي وضمان شامل للمشاريع."
+            "🏗️ **قسم المقاولات العامة والإنشاءات:**\n\n"
+            "نقدم حلولاً هندسية متكاملة تشمل:\n"
+            "• أعمال الهيكل الإنشائي والخرسانات بدقة هندسية عالية.\n"
+            "• التشطيبات الحديثة والمتكاملة (تسليم مفتاح ديلوكس).\n"
+            "• التصاميم المعمارية والإنشائية، الديكورات الداخلية والواجهات الخارجية.\n"
+            "• إشراف كادر هندسي مختص خطوة بخطوة مع ضمان الجودة.\n\n"
+            "💬 *تگدر تكتب تفاصيل مساحة موقعك أو طلبك هنا، ويسعدني إجابتك فوراً.*"
         )
     elif data == "dept_realestate":
         text_response = (
-            "🏢 **قسم الاستثمارات العقارية**\n\n"
-            "• إدارة وتطوير وتسويق العقارات والأراضي.\n"
-            "• توفير فرص استثمارية مدروسة وبعوائد ممتازة."
+            "🏢 **قسم الاستثمارات والتطوير العقاري:**\n\n"
+            "• استشارات ودراسات جدوى اقتصادية للمشاريع العقارية.\n"
+            "• تسويق، إدارة، وتطوير العقارات والأراضي السكنية والتجارية.\n"
+            "• فرص استثمارية مدروسة تحقق أعلى عائد وقيمة مضافة لأموالك.\n\n"
+            "💬 *حاب تستفسر عن بيع، شراء، أو استثمار معين؟ اكتبلي التفاصيل وبخدمتك.*"
         )
     elif data == "dept_trade":
         text_response = (
-            "📦 **قسم التجارة العامة**\n\n"
-            "• استيراد وتوريد وتأمين البضائع والسلع بدقة وسرعة وأسعار تنافسية."
+            "📦 **قسم التجارة العامة والتوريدات:**\n\n"
+            "• استيراد وتأمين المواد الإنشائية ومستلزمات البناء عالية الجودة.\n"
+            "• صفقات تجارية وسلاسل إمداد مستقرة للمشاريع والشركات.\n"
+            "• أسعار تنافسية مع الالتزام التام بالمواصفات القياسية المعتمدة."
         )
     elif data == "dept_transport":
         text_response = (
-            "🚚 **قسم النقل العام والخدمات اللوجستية**\n\n"
-            "• خدمات نقل بري وإدارة لوجستية آمنة لحركة البضائع والركاب."
+            "🚚 **قسم النقل العام والخدمات اللوجستية:**\n\n"
+            "• حلول النقل البري للبضائع والمواد بين المحافظات.\n"
+            "• إدارة أساطيل النقل وتأمين مسارات آمنة ومنتظمة.\n"
+            "• دقة في المواعيد ومرونة في تلبية الاحتياجات اللوجستية."
         )
     elif data == "dept_contact":
         text_response = (
-            "📞 **أرقام التواصل الرسمية المباشرة:**\n\n"
+            "📞 **قنوات الاتصال المباشرة:**\n\n"
             "▫️ هاتف: `009647868006699`\n"
             "▫️ هاتف: `009647737006699`\n"
             "▫️ هاتف الإدارة: `07805509298`\n"
-            "▫️ إيميل: RTCo2025@gmail.com"
+            "▫️ البريد الإلكتروني: RTCo2025@gmail.com\n\n"
+            "مكتبنا وكادرنا الفني والإداري بخدمتكم دوماً."
         )
     elif data == "dept_social":
         text_response = (
             "🌐 **منصاتنا وحساباتنا الرسمية:**\n\n"
-            "• الموقع: www.alburjmutalaliq.co\n"
+            "• الموقع الإلكتروني: www.alburjmutalaliq.co\n"
             "• تيليجرام: https://t.me/RTCo2025\n"
             "• إنستغرام: https://www.instagram.com/rtco2025\n"
             "• تيك توك: https://www.tiktok.com/@rtco2025\n"
@@ -129,7 +162,7 @@ async def handle_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
         parse_mode="Markdown"
     )
 
-# 6. معالجة الرسائل وإرسال الإشعار للإدارة
+# 6. معالجة الرسائل بذكاء وتفصيل مفيد
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global CURRENT_MODEL
     user = update.effective_user
@@ -142,8 +175,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 {"role": "system", "content": SYSTEM_INSTRUCTION},
                 {"role": "user", "content": user_text}
             ],
-            temperature=0.4,
-            max_tokens=300
+            temperature=0.6,
+            max_tokens=800
         )
         raw_reply = completion.choices[0].message.content
         reply = clean_think_tags(raw_reply)
@@ -156,26 +189,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 {"role": "system", "content": SYSTEM_INSTRUCTION},
                 {"role": "user", "content": user_text}
             ],
-            temperature=0.4,
-            max_tokens=300
+            temperature=0.6,
+            max_tokens=800
         )
         raw_reply = completion.choices[0].message.content
         reply = clean_think_tags(raw_reply)
         await update.message.reply_text(reply, reply_markup=get_back_keyboard())
 
-    # إرسال تقرير فوري لحسابك الخاص
-    admin_summary = (
-        f"📩 **استفسار جديد من عميل**\n\n"
-        f"👤 **الاسم:** {user.full_name}\n"
-        f"🔗 **اليوزر:** @{user.username if user.username else 'لا يوجد'}\n"
-        f"🆔 **الآيدي:** `{user.id}`\n\n"
-        f"💬 **نص الرسالة:**\n{user_text}\n\n"
-        f"🤖 **رد السكرتيرة:**\n{reply}"
-    )
-    try:
-        await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_summary, parse_mode="Markdown")
-    except Exception:
-        pass
+    # إشعار الإدارة
+    if ADMIN_CHAT_ID and ADMIN_CHAT_ID != "ضع_رقم_الآيدي_هنا":
+        admin_summary = (
+            f"📩 **استفسار جديد من عميل**\n\n"
+            f"👤 **الاسم:** {user.full_name}\n"
+            f"🔗 **اليوزر:** @{user.username if user.username else 'لا يوجد'}\n"
+            f"🆔 **الآيدي:** `{user.id}`\n\n"
+            f"💬 **سؤال الزبون:**\n{user_text}\n\n"
+            f"🤖 **رد السكرتيرة:**\n{reply}"
+        )
+        try:
+            await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_summary, parse_mode="Markdown")
+        except Exception:
+            pass
 
 # 7. سيرفر الاستضافة
 class HealthHandler(BaseHTTPRequestHandler):
