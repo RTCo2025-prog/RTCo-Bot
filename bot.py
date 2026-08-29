@@ -8,7 +8,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Con
 # 1. إعداد المفاتيح
 TELEGRAM_BOT_TOKEN = "8624313127:AAHtPRy05UNfL5_6Cv1ySiqfcT5eqRCTks0"
 # تأكد من وضع مفتاح Groq الخاص بك الذي يبدأ بـ gsk_
-GROQ_API_KEY = "AQ.Ab8RN6JrSt2als432M6wZqQX2q6F2KBUJvCKF3QNtFquKMXzbw"
+GROQ_API_KEY = "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"
 
 # 2. إعداد عميل Groq
 client = Groq(api_key=GROQ_API_KEY)
