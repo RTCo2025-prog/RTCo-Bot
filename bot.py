@@ -1,13 +1,15 @@
 import os
+import re
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from groq import Groq
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
 
-# 1. إعداد المفاتيح
+# 1. إعداد المفاتيح والمعرفات
 TELEGRAM_BOT_TOKEN = "8624313127:AAHtPRy05UNfL5_6Cv1ySiqfcT5eqRCTks0"
 GROQ_API_KEY = "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"
+ADMIN_CHAT_ID = "7822645247"
 
 client = Groq(api_key=GROQ_API_KEY)
 
@@ -35,12 +37,16 @@ def get_back_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# 3. توجيهات الذكاء الاصطناعي (موجزة ومباشرة)
+# 3. توجيهات الذكاء الاصطناعي
 SYSTEM_INSTRUCTION = """
 أنتِ السكرتيرة التنفيذية لـ "شركة البرج المتألق للمقاولات العامة والتجارة العامة والنقل العام والاستثمارات العقارية".
 أسلوبكِ: أنثوي، لبق، راقٍ بلهجة عراقية مهذبة ومختصرة جداً (خير الكلام ما قل ودل).
-قدمي إجابات مباشرة ومفيدة في حدود سطرين إلى 3 أسطر فقط دون إطالة، ووجّهي العميل بلطف لترك بياناته أو التواصل المباشر مع الإدارة عند الحاجة.
+أجيبي باللغة العربية حصراً في حدود سطرين فقط، ووجّهي الزبون بلطف لترك اسمه ورقمه أو التواصل المباشر مع الإدارة عند الحاجة.
 """
+
+def clean_think_tags(text: str) -> str:
+    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    return cleaned.strip()
 
 def get_active_model():
     try:
@@ -58,7 +64,7 @@ CURRENT_MODEL = get_active_model()
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         "أهلاً وسهلاً بحضرتك نورتنا بشركة **البرج المتألق** ✨\n\n"
-        "يسعدنا خدمتك، يرجى اختيار القسم المطلوب أو الاستفسار مباشرة:"
+        "يسعدنا خدمتك، يرجى اختيار القسم المطلوب أو كتابة استفسارك مباشرة:"
     )
     if update.message:
         await update.message.reply_text(welcome_text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
@@ -80,35 +86,32 @@ async def handle_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
     if data == "dept_contracting":
         text_response = (
             "🏗️ **قسم المقاولات العامة والإنشاءات**\n\n"
-            "• تنفيذ أعمال البناء والتشطيبات المتكاملة.\n"
-            "• تصاميم وإشراف هندسي وفق أعلى المعايير الفنية.\n"
-            "• للاستفسار أو طلب كشف موقعي، يسعدنا تواصلكم المباشر."
+            "• تنفيذ أعمال البناء والتشطيبات المتكاملة وفق أحدث التصاميم.\n"
+            "• إشراف هندسي وضمان شامل للمشاريع."
         )
     elif data == "dept_realestate":
         text_response = (
             "🏢 **قسم الاستثمارات العقارية**\n\n"
             "• إدارة وتطوير وتسويق العقارات والأراضي.\n"
-            "• تقديم استشارات واستثمارات عقارية بعوائد آمنة ومضمونة."
+            "• توفير فرص استثمارية مدروسة وبعوائد ممتازة."
         )
     elif data == "dept_trade":
         text_response = (
             "📦 **قسم التجارة العامة**\n\n"
-            "• توريد وتأمين المواد والبضائع للمشاريع والأسواق.\n"
-            "• صفقات تجارية وسلاسل إمداد موثوقة وبأسعار تنافسية."
+            "• استيراد وتوريد وتأمين البضائع والسلع بدقة وسرعة وأسعار تنافسية."
         )
     elif data == "dept_transport":
         text_response = (
             "🚚 **قسم النقل العام والخدمات اللوجستية**\n\n"
-            "• خدمات النقل البري للبضائع والركاب.\n"
-            "• إدارة حركة الأساطيل وتسهيل سلاسل الإمداد بدقة والتزام."
+            "• خدمات نقل بري وإدارة لوجستية آمنة لحركة البضائع والركاب."
         )
     elif data == "dept_contact":
         text_response = (
             "📞 **أرقام التواصل الرسمية المباشرة:**\n\n"
-            "▫️ الهاتف الأول: `009647868006699`\n"
-            "▫️ الهاتف الثاني: `009647737006699`\n"
-            "▫️ الإيميل: RTCo2025@gmail.com\n\n"
-            "فريقنا الفني والإداري بخدمتكم دائماً."
+            "▫️ هاتف: `009647868006699`\n"
+            "▫️ هاتف: `009647737006699`\n"
+            "▫️ هاتف الإدارة: `07805509298`\n"
+            "▫️ إيميل: RTCo2025@gmail.com"
         )
     elif data == "dept_social":
         text_response = (
@@ -126,10 +129,12 @@ async def handle_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
         parse_mode="Markdown"
     )
 
-# 6. معالجة الرسائل النصية المكتوبة
+# 6. معالجة الرسائل وإرسال الإشعار للإدارة
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global CURRENT_MODEL
+    user = update.effective_user
     user_text = update.message.text
+
     try:
         completion = client.chat.completions.create(
             model=CURRENT_MODEL,
@@ -137,26 +142,40 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 {"role": "system", "content": SYSTEM_INSTRUCTION},
                 {"role": "user", "content": user_text}
             ],
-            temperature=0.5,
-            max_tokens=400
+            temperature=0.4,
+            max_tokens=300
         )
-        reply = completion.choices[0].message.content
+        raw_reply = completion.choices[0].message.content
+        reply = clean_think_tags(raw_reply)
         await update.message.reply_text(reply, reply_markup=get_back_keyboard())
     except Exception:
-        try:
-            CURRENT_MODEL = get_active_model()
-            completion = client.chat.completions.create(
-                model=CURRENT_MODEL,
-                messages=[
-                    {"role": "system", "content": SYSTEM_INSTRUCTION},
-                    {"role": "user", "content": user_text}
-                ],
-                temperature=0.5,
-                max_tokens=400
-            )
-            await update.message.reply_text(completion.choices[0].message.content, reply_markup=get_back_keyboard())
-        except Exception as err:
-            await update.message.reply_text(f"خطأ في المعالجة: {err}", reply_markup=get_back_keyboard())
+        CURRENT_MODEL = get_active_model()
+        completion = client.chat.completions.create(
+            model=CURRENT_MODEL,
+            messages=[
+                {"role": "system", "content": SYSTEM_INSTRUCTION},
+                {"role": "user", "content": user_text}
+            ],
+            temperature=0.4,
+            max_tokens=300
+        )
+        raw_reply = completion.choices[0].message.content
+        reply = clean_think_tags(raw_reply)
+        await update.message.reply_text(reply, reply_markup=get_back_keyboard())
+
+    # إرسال تقرير فوري لحسابك الخاص
+    admin_summary = (
+        f"📩 **استفسار جديد من عميل**\n\n"
+        f"👤 **الاسم:** {user.full_name}\n"
+        f"🔗 **اليوزر:** @{user.username if user.username else 'لا يوجد'}\n"
+        f"🆔 **الآيدي:** `{user.id}`\n\n"
+        f"💬 **نص الرسالة:**\n{user_text}\n\n"
+        f"🤖 **رد السكرتيرة:**\n{reply}"
+    )
+    try:
+        await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_summary, parse_mode="Markdown")
+    except Exception:
+        pass
 
 # 7. سيرفر الاستضافة
 class HealthHandler(BaseHTTPRequestHandler):
