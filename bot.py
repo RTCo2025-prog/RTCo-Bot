@@ -1,17 +1,16 @@
 import os
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import google.generativeai as genai
+from google import genai
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
 # 1. إعداد المفاتيح
 TELEGRAM_BOT_TOKEN = "8624313127:AAHtPRy05UNfL5_6Cv1ySiqfcT5eqRCTks0"
-GEMINI_API_KEY = "AQ.Ab8RN6JrSt2als432M6wZqQX2q6F2KBUJvCKF3QNtFquKMXzbw"  # تأكد من وضع مفتاحك الكامل هنا
+# المفتاح الكامل المنسوخ من شاشتك
+GEMINI_API_KEY = "AQ.Ab8RN6JrSt2als432M6wZqQX2q6F2KBUJvCKF3QNtFquKMXzbw"
 
-# 2. إعداد جيميني
-genai.configure(api_key=GEMINI_API_KEY)
-
+# 2. الهوية والتعليمات الرسمية
 SYSTEM_INSTRUCTION = """
 # الهوية والدور الأساسي
 أنتِ السكرتيرة التنفيذية والممثلة الرقمية الرسمية لـ "شركة البرج المتألق للمقاولات العامة والتجارة العامة والنقل العام والاستثمارات العقارية".
@@ -75,16 +74,13 @@ SYSTEM_INSTRUCTION = """
 
 ---
 
-# الضوابط والقيود المهنية
+# الضوابط والقيود المهنية (Strict Guardrails)
 - عدم إعطاء أسعار نهائية أو مبالغ قطعية في الدردشة؛ توضيح أن التسعير الدقيق يتطلب كشفاً هندسياً/فنياً من الإدارة المختصة.
 - الحفاظ التام على خصوصية وسرية بيانات المتصلين.
 """
 
-# إعداد النموذج
-model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
-    system_instruction=SYSTEM_INSTRUCTION
-)
+# 3. إعداد العميل الرسمي
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
@@ -101,32 +97,37 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     try:
-        response = model.generate_content(user_text)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=user_text,
+            config={
+                "system_instruction": SYSTEM_INSTRUCTION
+            }
+        )
         await update.message.reply_text(response.text)
     except Exception as e:
-        print(f"Error: {e}")
         await update.message.reply_text(
-            f"عذراً، حدث خلل في الاتصال بالذكاء الاصطناعي.\nالسبب: {e}"
+            f"عذراً، حدث خطأ: {e}"
         )
 
-# خادم وهمي لمنصة Render
-class SimpleHandler(BaseHTTPRequestHandler):
+# خادم وهمي لإبقاء الخدمة حية على Render
+class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header('Content-type', 'text/plain')
         self.end_headers()
         self.wfile.write(b"OK")
 
-def run_server():
+def start_server():
     port = int(os.environ.get("PORT", 10000))
     try:
-        server = HTTPServer(("0.0.0.0", port), SimpleHandler)
+        server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
         server.serve_forever()
     except Exception:
         pass
 
 if __name__ == '__main__':
-    threading.Thread(target=run_server, daemon=True).start()
+    threading.Thread(target=start_server, daemon=True).start()
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
