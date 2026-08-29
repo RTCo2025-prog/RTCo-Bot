@@ -37,7 +37,7 @@ def get_back_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# 3. توجيهات السكرتيرة الذكية
+# 3. توجيهات وهوية السكرتيرة الذكية
 SYSTEM_INSTRUCTION = """
 # الهوية والدور الأساسي
 أنتِ السكرتيرة التنفيذية والمستشارة الرقمية لـ "شركة البرج المتألق للمقاولات العامة والتجارة العامة والنقل العام والاستثمارات العقارية".
@@ -46,41 +46,40 @@ SYSTEM_INSTRUCTION = """
 ---
 
 # سياسة الرد والشرح للزبون:
-- أجيبي باللغة العربية فقط ومباشرة بدون أي مقدمات أو تحليلات إنجليزية.
-- اشرحي إمكانيات الشركة باختصار واحترافية حسب السؤال.
-- إذا سأل عن البناء/المقاولات: وضّحي أن الشركة تنفذ الهيكل الأسود، التشطيبات الكاملة (تسليم مفتاح)، الديكورات الحديثة، مع تصاميم وإشراف هندسي وضمان جودة.
-- إذا سأل عن الاستثمار العقاري: وضّحي توفير الفرص والأراضي والعقارات الاستثمارية ذات العائد الممتاز.
-- بالنسبة للأسعار: اشرحي أنها تعتمد على المساحة والمواصفات واطلبي رقم الهاتف والاسم ليقوم المهندس المختص بالتواصل وتقديم كشف موقعي دقيق.
+- أجيبي باللغة العربية فقط ومباشرة دون أي مقدمات أو تحليلات باللغة الإنجليزية.
+- اشرحي إمكانيات الشركة باحترافية وتفصيل مفيد بحسب السؤال:
+  * إذا سأل عن البناء/المقاولات: وضّحي أن الشركة تنفذ الهيكل الإنشائي والتشطيبات الكاملة الديلوكس والتصاميم والديكورات مع إشراف هندسي وضمان شامل.
+  * إذا سأل عن الاستثمار العقاري: وضّحي توفير الفرص والأراضي والعقارات الاستثمارية ذات العائد المالي الممتاز وإدارة وتطوير المشاريع.
+  * إذا سأل عن التجارة والتوريد: اشرحي توريد المواد الإنشائية ومستلزمات البناء بأسعار تنافسية ومواصفات معتمدة.
+  * إذا سأل عن النقل: وضّحي توفير حلول النقل البري وإدارة الشحنات والأساطيل بأمان والتزام بالوقت.
+  * بالنسبة للأسعار: اشرحي أنها تعتمد على المساحة والمواصفات واطلبي رقم الهاتف والاسم ليقوم المهندس المختص بالتواصل وتقديم كشف موقعي دقيق.
 
 ---
 
 # بيانات التواصل الرسمية:
 - الهواتف: 009647868006699 | 009647737006699
 - هاتف الإدارة: 07805509298
-- الموقع: www.alburjmutalaliq.co
-- الإيميل: RTCo2025@gmail.com
+- الموقع الإلكتروني: www.alburjmutalaliq.co
+- البريد الإلكتروني: RTCo2025@gmail.com
 - تيليجرام: https://t.me/RTCo2025
 - إنستغرام: https://www.instagram.com/rtco2025
 - تيك توك: https://www.tiktok.com/@rtco2025
 - فيسبوك: https://www.facebook.com/rtco2025
 """
 
-# دالة لحذف أي نص تفكير متبقٍ بشكل قاطع
+# دالة لتنظيف أي نصوص تفكير داخلية
 def clean_think_tags(text: str) -> str:
     if not text:
         return ""
-    # إزالة أي شيء بين <think> و </think>
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-    # إزالة وسم think المفتوح إذا لم يغلق
     text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
     return text.strip()
 
-# اختيار نموذج عادي غير استنتاجي حصراً
+# اختيار أفضل نموذج محادثة نشط وتخطي نماذج التفكير
 def get_clean_model():
     try:
         models = client.models.list()
         for m in models.data:
-            # استبعاد نماذج التفكير والاستنتاج كلياً
             m_id = m.id.lower()
             if any(x in m_id for x in ["whisper", "guard", "r1", "deepseek", "reasoning", "qwen-qwq"]):
                 continue
@@ -102,7 +101,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif update.callback_query:
         await update.callback_query.message.reply_text(welcome_text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
 
-# 5. معالجة الأزرار
+# 5. معالجة الأزرار التفاعلية
 async def handle_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -171,7 +170,7 @@ async def handle_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
         parse_mode="Markdown"
     )
 
-# 6. معالجة الرسائل
+# 6. معالجة الرسائل وإرسال الإشعار للإدارة مع رابط الزبون
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global CURRENT_MODEL
     user = update.effective_user
@@ -190,7 +189,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw_reply = completion.choices[0].message.content
         reply = clean_think_tags(raw_reply)
         if not reply:
-            reply = "أهلاً وسهلاً بحضرتك.. يسعدني جداً خدمتك بشركة البرج المتألق، تفضل شلون أگدر أساعدك؟"
+            reply = "أهلاً وسهلاً بحضرتك نورتنا في شركة البرج المتألق ✨ تفضل، شلون أگدر أساعدك اليوم؟"
         await update.message.reply_text(reply, reply_markup=get_back_keyboard())
     except Exception:
         CURRENT_MODEL = get_clean_model()
@@ -206,21 +205,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw_reply = completion.choices[0].message.content
         reply = clean_think_tags(raw_reply)
         if not reply:
-            reply = "أهلاً وسهلاً بحضرتك.. يسعدني جداً خدمتك بشركة البرج المتألق، تفضل شلون أگدر أساعدك؟"
+            reply = "أهلاً وسهلاً بحضرتك نورتنا في شركة البرج المتألق ✨ تفضل، شلون أگدر أساعدك اليوم؟"
         await update.message.reply_text(reply, reply_markup=get_back_keyboard())
 
-    # إشعار الإدارة
+    # إشعار الإدارة برابط مباشر للتواصل مع الزبون
     if ADMIN_CHAT_ID:
+        user_link = f"tg://user?id={user.id}"
+        username_text = f"@{user.username}" if user.username else "لا يوجد (استخدم الرابط المباشر)"
+
         admin_summary = (
-            f"📩 **استفسار جديد من عميل**\n\n"
-            f"👤 **الاسم:** {user.full_name}\n"
-            f"🔗 **اليوزر:** @{user.username if user.username else 'لا يوجد'}\n"
+            f"📩 **استفسار جديد من زبون**\n\n"
+            f"👤 **الاسم:** [{user.full_name}]({user_link})\n"
+            f"🔗 **اليوزر:** {username_text}\n"
             f"🆔 **الآيدي:** `{user.id}`\n\n"
             f"💬 **سؤال الزبون:**\n{user_text}\n\n"
-            f"🤖 **رد السكرتيرة:**\n{reply}"
+            f"🤖 **رد السكرتيرة:**\n{reply}\n\n"
+            f"👉 [اضغط هنا لمراسلة الزبون مباشرة]({user_link})"
         )
         try:
-            await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_summary, parse_mode="Markdown")
+            await context.bot.send_message(
+                chat_id=ADMIN_CHAT_ID,
+                text=admin_summary,
+                parse_mode="Markdown",
+                disable_web_page_preview=True
+            )
         except Exception:
             pass
 
