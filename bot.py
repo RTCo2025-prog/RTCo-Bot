@@ -1,12 +1,16 @@
-import google.generativeai as genai
+import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from google import genai
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-# 1. إعداد المفاتيح (استبدل القيم بالمفاتيح الخاصة بك)
+# المفاتيح
 TELEGRAM_BOT_TOKEN = "8624313127:AAHtPRy05UNfL5_6Cv1ySiqfcT5eqRCTks0"
 GEMINI_API_KEY = "AQ.Ab8RN6JrSt2als432M6wZqQX2q6F2KBUJvCKF3QNtFquKMXzbw"
 
-# 2. نص التعليمات والهوية الكاملة للسكرتيرة
+
+# التعليمات الرسمية للسكرتيرة
 SYSTEM_INSTRUCTION = """
 # الهوية والدور الأساسي
 أنتِ السكرتيرة التنفيذية والممثلة الرقمية الرسمية لـ "شركة البرج المتألق للمقاولات العامة والتجارة العامة والنقل العام والاستثمارات العقارية".
@@ -60,31 +64,19 @@ SYSTEM_INSTRUCTION = """
 ---
 
 # مسار المحادثة والتعامل مع العميل (Workflow)
-
-1. الترحيب وتحديد القسم:
-   - الترحيب بلباقة وأسلوب أنثوي راقٍ وسؤال العميل عن الخدمة أو القسم المطلوب.
-2. التوضيح وجمع البيانات:
-   - بعد الاستماع لاحتياج العميل، جمع بياناته بلطف لترتيب التواصل المباشر مع المختصين في الإدارة:
-   (الاسم الكريم، رقم الهاتف أو الواتساب، المحافظة/الموقع، ونبذة مختصرة عن الطلب).
-3. تزويد العميل بالقنوات الرسمية:
-   - عند رغبة العميل بالتواصل المباشر، مشاركة أرقام الهواتف أو الروابط الرسمية المناسبة لطلبه.
+1. الترحيب وتحديد القسم المطلوب.
+2. الاستماع للعميل وجمع بياناته (الاسم، رقم الهاتف، المحافظة، تفاصيل الطلب).
+3. تزويد العميل بالقنوات الرسمية عند الحاجة.
 
 ---
 
-# الضوابط والقيود المهنية (Strict Guardrails)
-- عدم إعطاء أسعار نهائية أو مبالغ قطعية في الدردشة؛ توضيح أن التسعير الدقيق يتطلب كشفاً هندسياً/فنياً من الإدارة المختصة.
-- الحفاظ التام على خصوصية وسرية بيانات المتصلين.
+# الضوابط والقيود المهنية
+- عدم إعطاء أسعار نهائية قطعية والتأكيد على ضرورة الكشف الهندسي/الفني.
+- الحفاظ على خصوصية وسرية بيانات المتصلين.
 """
 
-# 3. إعداد نموذج الذكاء الاصطناعي
-genai.configure(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash",
-    system_instruction=SYSTEM_INSTRUCTION
-)
-
-# 4. دالة بدء المحادثة عند ضغط /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         "أهلاً وسهلاً بحضرتك نورتنا في شركة البرج المتألق للمقاولات العامة والتجارة العامة والنقل العام والاستثمارات العقارية.. يا هلا بيك ✨\n\n"
@@ -97,21 +89,36 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome_text)
 
-# 5. دالة الرد على الرسائل عبر الذكاء الاصطناعي
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     try:
-        response = model.generate_content(user_text)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=user_text,
+            config={"system_instruction": SYSTEM_INSTRUCTION}
+        )
         await update.message.reply_text(response.text)
-    except Exception as e:
+    except Exception:
         await update.message.reply_text(
             "عذراً، حدث خلل بسيط في الاتصال.. تكدر تتواصل ويانا مباشرة عبر الهاتف: 009647868006699 أو تعيد إرسال رسالتك بعد لحظات."
         )
 
-# 6. التشغيل الرئيسي للبوت
+# خادم وهمي لمنصة Render لتجاوز مشكلة Port Timeout
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+def start_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    server.serve_forever()
+
 if __name__ == '__main__':
+    threading.Thread(target=start_server, daemon=True).start()
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("بوت سكرتيرة شركة البرج المتألق يعمل الآن بنجاح على تليجرام...")
     app.run_polling()
