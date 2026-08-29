@@ -37,7 +37,7 @@ def get_back_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# 3. توجيهات وهوية السكرتيرة الذكية التفصيلية
+# 3. توجيهات السكرتيرة الذكية
 SYSTEM_INSTRUCTION = """
 # الهوية والدور الأساسي
 أنتِ السكرتيرة التنفيذية والمستشارة الرقمية لـ "شركة البرج المتألق للمقاولات العامة والتجارة العامة والنقل العام والاستثمارات العقارية".
@@ -45,17 +45,16 @@ SYSTEM_INSTRUCTION = """
 
 ---
 
-# سياسة الرد والشرح للزبون (مهم جداً):
-- لا تكتفي بكلمات عامة أو إحالة الزبون للاتصال مباشرة؛ بل قدّمي شرحاً وافياً ومفيداً يشرح إمكانيات الشركة وطريقة العمل في النقطة التي يسأل عنها.
-- إذا سأل عن البناء أو المقاولات: وضّحي أن الشركة تنفذ الهيكل الأسود، التشطيبات الكاملة (تسليم مفتاح)، الديكورات الحديثة، مع تصاميم معمارية وإشراف هندسي يومي وضمان جودة.
-- إذا سأل عن الاستثمار العقاري: وضّحي أن الشركة تقدم استشارات وتوفر فرصاً وأراضي وعقارات ذات عائد مجدٍ وتطوير عقاري آمن.
-- إذا سأل عن التجارة والتوريد: اشرحي قدرة الشركة على توفير المواد الإنشائية والبضائع للشركات والمشاريع بأسعار تنافسية وسلاسل إمداد موثوقة.
-- إذا سأل عن النقل: وضّحي توفير حلول النقل البري وإدارة الشحنات والأساطيل بأمان والتزام بالوقت.
-- بالنسبة للأسعار: اشرحي العوامل التي يعتمد عليها السعر (المساحة، نوع المواد، المواصفات المطلوبة)، واقترحي عليه تزويدك بتفاصيل مشروعه، أو أخذ رقمه واسمه ليقوم المهندس/المختص بالتواصل معه وتقديم دراسة وكشف موقعي دقيق.
+# سياسة الرد والشرح للزبون:
+- أجيبي باللغة العربية فقط ومباشرة بدون أي مقدمات أو تحليلات إنجليزية.
+- اشرحي إمكانيات الشركة باختصار واحترافية حسب السؤال.
+- إذا سأل عن البناء/المقاولات: وضّحي أن الشركة تنفذ الهيكل الأسود، التشطيبات الكاملة (تسليم مفتاح)، الديكورات الحديثة، مع تصاميم وإشراف هندسي وضمان جودة.
+- إذا سأل عن الاستثمار العقاري: وضّحي توفير الفرص والأراضي والعقارات الاستثمارية ذات العائد الممتاز.
+- بالنسبة للأسعار: اشرحي أنها تعتمد على المساحة والمواصفات واطلبي رقم الهاتف والاسم ليقوم المهندس المختص بالتواصل وتقديم كشف موقعي دقيق.
 
 ---
 
-# بيانات وقنوات الشركة الرسمية:
+# بيانات التواصل الرسمية:
 - الهواتف: 009647868006699 | 009647737006699
 - هاتف الإدارة: 07805509298
 - الموقع: www.alburjmutalaliq.co
@@ -66,21 +65,31 @@ SYSTEM_INSTRUCTION = """
 - فيسبوك: https://www.facebook.com/rtco2025
 """
 
+# دالة لحذف أي نص تفكير متبقٍ بشكل قاطع
 def clean_think_tags(text: str) -> str:
-    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-    return cleaned.strip()
+    if not text:
+        return ""
+    # إزالة أي شيء بين <think> و </think>
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    # إزالة وسم think المفتوح إذا لم يغلق
+    text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
+    return text.strip()
 
-def get_active_model():
+# اختيار نموذج عادي غير استنتاجي حصراً
+def get_clean_model():
     try:
         models = client.models.list()
-        available_ids = [m.id for m in models.data if "whisper" not in m.id and "guard" not in m.id]
-        if available_ids:
-            return available_ids[0]
+        for m in models.data:
+            # استبعاد نماذج التفكير والاستنتاج كلياً
+            m_id = m.id.lower()
+            if any(x in m_id for x in ["whisper", "guard", "r1", "deepseek", "reasoning", "qwen-qwq"]):
+                continue
+            return m.id
     except Exception:
         pass
     return "llama-3.3-70b-versatile"
 
-CURRENT_MODEL = get_active_model()
+CURRENT_MODEL = get_clean_model()
 
 # 4. أمر البداية
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -111,7 +120,7 @@ async def handle_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
             "نقدم حلولاً هندسية متكاملة تشمل:\n"
             "• أعمال الهيكل الإنشائي والخرسانات بدقة هندسية عالية.\n"
             "• التشطيبات الحديثة والمتكاملة (تسليم مفتاح ديلوكس).\n"
-            "• التصاميم المعمارية والإنشائية، الديكورات الداخلية والواجهات الخارجية.\n"
+            "• التصاميم المعمارية والإنشائية والديكورات الداخلية.\n"
             "• إشراف كادر هندسي مختص خطوة بخطوة مع ضمان الجودة.\n\n"
             "💬 *تگدر تكتب تفاصيل مساحة موقعك أو طلبك هنا، ويسعدني إجابتك فوراً.*"
         )
@@ -162,7 +171,7 @@ async def handle_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
         parse_mode="Markdown"
     )
 
-# 6. معالجة الرسائل بذكاء وتفصيل مفيد
+# 6. معالجة الرسائل
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global CURRENT_MODEL
     user = update.effective_user
@@ -175,29 +184,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 {"role": "system", "content": SYSTEM_INSTRUCTION},
                 {"role": "user", "content": user_text}
             ],
-            temperature=0.6,
+            temperature=0.5,
             max_tokens=800
         )
         raw_reply = completion.choices[0].message.content
         reply = clean_think_tags(raw_reply)
+        if not reply:
+            reply = "أهلاً وسهلاً بحضرتك.. يسعدني جداً خدمتك بشركة البرج المتألق، تفضل شلون أگدر أساعدك؟"
         await update.message.reply_text(reply, reply_markup=get_back_keyboard())
     except Exception:
-        CURRENT_MODEL = get_active_model()
+        CURRENT_MODEL = get_clean_model()
         completion = client.chat.completions.create(
             model=CURRENT_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_INSTRUCTION},
                 {"role": "user", "content": user_text}
             ],
-            temperature=0.6,
+            temperature=0.5,
             max_tokens=800
         )
         raw_reply = completion.choices[0].message.content
         reply = clean_think_tags(raw_reply)
+        if not reply:
+            reply = "أهلاً وسهلاً بحضرتك.. يسعدني جداً خدمتك بشركة البرج المتألق، تفضل شلون أگدر أساعدك؟"
         await update.message.reply_text(reply, reply_markup=get_back_keyboard())
 
     # إشعار الإدارة
-    if ADMIN_CHAT_ID and ADMIN_CHAT_ID != "ضع_رقم_الآيدي_هنا":
+    if ADMIN_CHAT_ID:
         admin_summary = (
             f"📩 **استفسار جديد من عميل**\n\n"
             f"👤 **الاسم:** {user.full_name}\n"
@@ -211,7 +224,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-# 7. سيرفر الاستضافة
+# 7. سيرفر الاستضافة لـ Render
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
