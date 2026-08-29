@@ -1,16 +1,17 @@
 import os
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from google import genai
+import google.generativeai as genai
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-# المفاتيح
+# 1. إعداد المفاتيح
 TELEGRAM_BOT_TOKEN = "8624313127:AAHtPRy05UNfL5_6Cv1ySiqfcT5eqRCTks0"
-GEMINI_API_KEY = "AQ.Ab8RN6JrSt2als432M6wZqQX2q6F2KBUJvCKF3QNtFquKMXzbw"
+GEMINI_API_KEY = "AQ.Ab8RN6JrSt2als432M6wZqQX2q6F2KBUJvCKF3QNtFquKMXzbw"  # تأكد من وضع مفتاحك الكامل هنا
 
+# 2. إعداد جيميني
+genai.configure(api_key=GEMINI_API_KEY)
 
-# التعليمات الرسمية للسكرتيرة
 SYSTEM_INSTRUCTION = """
 # الهوية والدور الأساسي
 أنتِ السكرتيرة التنفيذية والممثلة الرقمية الرسمية لـ "شركة البرج المتألق للمقاولات العامة والتجارة العامة والنقل العام والاستثمارات العقارية".
@@ -64,18 +65,26 @@ SYSTEM_INSTRUCTION = """
 ---
 
 # مسار المحادثة والتعامل مع العميل (Workflow)
-1. الترحيب وتحديد القسم المطلوب.
-2. الاستماع للعميل وجمع بياناته (الاسم، رقم الهاتف، المحافظة، تفاصيل الطلب).
-3. تزويد العميل بالقنوات الرسمية عند الحاجة.
+1. الترحيب وتحديد القسم:
+   - الترحيب بلباقة وأسلوب أنثوي راقٍ وسؤال العميل عن الخدمة أو القسم المطلوب.
+2. التوضيح وجمع البيانات:
+   - بعد الاستماع لاحتياج العميل، جمع بياناته بلطف لترتيب التواصل المباشر مع المختصين في الإدارة:
+   (الاسم الكريم، رقم الهاتف أو الواتساب، المحافظة/الموقع، ونبذة مختصرة عن الطلب).
+3. تزويد العميل بالقنوات الرسمية:
+   - عند رغبة العميل بالتواصل المباشر، مشاركة أرقام الهواتف أو الروابط الرسمية المناسبة لطلبه.
 
 ---
 
 # الضوابط والقيود المهنية
-- عدم إعطاء أسعار نهائية قطعية والتأكيد على ضرورة الكشف الهندسي/الفني.
-- الحفاظ على خصوصية وسرية بيانات المتصلين.
+- عدم إعطاء أسعار نهائية أو مبالغ قطعية في الدردشة؛ توضيح أن التسعير الدقيق يتطلب كشفاً هندسياً/فنياً من الإدارة المختصة.
+- الحفاظ التام على خصوصية وسرية بيانات المتصلين.
 """
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+# إعداد النموذج
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash",
+    system_instruction=SYSTEM_INSTRUCTION
+)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
@@ -92,32 +101,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=user_text,
-            config={"system_instruction": SYSTEM_INSTRUCTION}
-        )
+        response = model.generate_content(user_text)
         await update.message.reply_text(response.text)
-    except Exception:
+    except Exception as e:
+        print(f"Error: {e}")
         await update.message.reply_text(
-            "عذراً، حدث خلل بسيط في الاتصال.. تكدر تتواصل ويانا مباشرة عبر الهاتف: 009647868006699 أو تعيد إرسال رسالتك بعد لحظات."
+            f"عذراً، حدث خلل في الاتصال بالذكاء الاصطناعي.\nالسبب: {e}"
         )
 
-# خادم وهمي لمنصة Render لتجاوز مشكلة Port Timeout
-class HealthCheckHandler(BaseHTTPRequestHandler):
+# خادم وهمي لمنصة Render
+class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header('Content-type', 'text/plain')
         self.end_headers()
         self.wfile.write(b"OK")
 
-def start_server():
+def run_server():
     port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-    server.serve_forever()
+    try:
+        server = HTTPServer(("0.0.0.0", port), SimpleHandler)
+        server.serve_forever()
+    except Exception:
+        pass
 
 if __name__ == '__main__':
-    threading.Thread(target=start_server, daemon=True).start()
+    threading.Thread(target=run_server, daemon=True).start()
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
