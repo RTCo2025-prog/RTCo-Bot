@@ -149,14 +149,13 @@ async def handle_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
             "📞 **قنوات الاتصال المباشرة:**\n\n"
             "▫️ هاتف: `009647868006699`\n"
             "▫️ هاتف: `009647737006699`\n"
-            "▫️ هاتف الإدارة: `07805509298`\n"
             "▫️ البريد الإلكتروني: RTCo2025@gmail.com\n\n"
             "مكتبنا وكادرنا الفني والإداري بخدمتكم دوماً."
         )
     elif data == "dept_social":
         text_response = (
             "🌐 **منصاتنا وحساباتنا الرسمية:**\n\n"
-            "• الموقع الإلكتروني: www.alburjmutalaliq.co\n"
+            "• الموقع الإلكتروني: https://linktr.ee/RTCo2025\n"
             "• تيليجرام: https://t.me/RTCo2025\n"
             "• إنستغرام: https://www.instagram.com/rtco2025\n"
             "• تيك توك: https://www.tiktok.com/@rtco2025\n"
