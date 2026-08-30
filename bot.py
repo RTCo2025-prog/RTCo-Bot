@@ -58,8 +58,7 @@ SYSTEM_INSTRUCTION = """
 
 # بيانات التواصل الرسمية:
 - الهواتف: 009647868006699 | 009647737006699
-- هاتف الإدارة: 07805509298
-- الموقع الإلكتروني: www.alburjmutalaliq.co
+- الموقع الإلكتروني: https://linktr.ee/RTCo2025
 - البريد الإلكتروني: RTCo2025@gmail.com
 - تيليجرام: https://t.me/RTCo2025
 - إنستغرام: https://www.instagram.com/rtco2025
