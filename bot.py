@@ -1,7 +1,7 @@
 """
 نظام السكرتيرة الذكية - شركة البرج المتألق
 الملف: bot.py
-الإصدار المحدث: دعم النماذج النشطة في Groq + الذاكرة المستمرة + زر الأقسام الدائم
+الإصدار المصحح: كشف النماذج الديناميكي + حل مشكلة الرد الثابت
 """
 
 import os
@@ -26,14 +26,6 @@ ADMIN_CHAT_ID = "7822645247"
 
 client = Groq(api_key=GROQ_API_KEY)
 user_conversations = {}
-
-# قائمة النماذج النشطة بالتسلسل لضمان الرد الفوري
-ACTIVE_MODELS = [
-    "openai/gpt-oss-120b",
-    "openai/gpt-oss-20b",
-    "qwen/qwen3.6-27b",
-    "llama-3.3-70b-versatile"
-]
 
 # 2. الأزرار والقوائم التفاعلية
 def get_chat_persistent_keyboard():
@@ -65,15 +57,17 @@ def get_back_to_menu_keyboard():
         [InlineKeyboardButton("🔙 رجوع لأقسام الشركة", callback_data="show_company_menu")]
     ])
 
-# 3. هوية الذكاء الاصطناعي
+# 3. تعليمات الذكاء الاصطناعي
 SYSTEM_INSTRUCTION = """
-أنتِ السكرتيرة التنفيذية والمستشارة الرقمية لشركة "البرج المتألق للمقاولات العامة والاستثمارات العقارية والتجارة والنقل".
-أسلوبكِ: أنثوي، لبق، راقٍ، ومهذب جداً بلهجة عراقية محترمة وبيئة أعمال راقية (مثل: "يا أهلاً وسهلاً بحضرتك"، "تدلل/تدللين"، "يسعدنا جداً نخدمك").
+أنتِ السكرتيرة التنفيذية والمستشارة الفنية لشركة "البرج المتألق للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام".
+أسلوبكِ: أنثوي، لبق، راقٍ، ومهذب جداً بلهجة عراقية محترمة وبيئة أعمال راقية (مثل: "يا أهلاً وسهلاً بحضرتك"، "تدلل/تدللين"، "يسعدنا نخدمك").
 
 قواعد الإجابة:
-1. أجيبي باللغة العربية فقط ومباشرة عن سؤال الزبون دون مقدمات طويلة ودون وضع أرقام هواتف أو إيميل في نهاية كل جواب.
-2. بيانات الشركة وأرقامها تُذكر فقط إذا سأل عنها الزبون صراحة (لأن هناك زر دائم مخصص لها أسفل كل رسالة).
-3. الحوار مستمر؛ اربطي الأسئلة التكميلية بسياق الحديث السابق بشكل طبيعي وسلس دون إعادة الترحيب.
+1. أجيبي فوراً وبشكل مفصل ومباشر عن سؤال الزبون باللغة العربية.
+   - إذا سأل عن مواد البناء (مثل الطابوق، السمنت، الحديد، التشطيبات): اشرحي الأنواع والاستخدامات الهندسية ومميزاتها بدقة ومعلومات وافية ومفيدة.
+2. لا تضعي أرقام هواتف أو إيميل أو روابط في نهاية الأجوبة العادية لأن الزر الدائم موجود بالأسفل.
+3. اذكري أرقام التواصل فقط إذا طلبها الزبون بصراحة.
+4. حافظي على ترابط الحديث إذا كان السؤال تكميلياً لما قبله.
 """
 
 def clean_think_tags(text: str) -> str:
@@ -83,25 +77,49 @@ def clean_think_tags(text: str) -> str:
     text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
     return text.strip()
 
+def get_available_models():
+    """جلب قائمة الموديلات الصالحة للاستخدام تلقائياً من سيرفر Groq"""
+    try:
+        models_data = client.models.list().data
+        valid_models = []
+        for m in models_data:
+            mid = m.id.lower()
+            # استبعاد نماذج الصوت والتفكير والصور
+            if any(x in mid for x in ["whisper", "guard", "r1", "deepseek", "vision", "qwen-qwq"]):
+                continue
+            valid_models.append(m.id)
+        if valid_models:
+            return valid_models
+    except Exception as e:
+        print(f"Error fetching models: {e}")
+    # نماذج احتياطية في حال تعذر القائمة
+    return ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "mixtral-8x7b-32768"]
+
 def generate_ai_reply(messages_payload):
-    """توليد الرد مع تجربة النماذج المتاحة بالتسلسل لمنع أي تعليق"""
-    for model_name in ACTIVE_MODELS:
+    """توليد الرد الحقيقي وتجربة النماذج المتاحة فعلياً"""
+    models = get_available_models()
+    last_error = ""
+    for model_name in models:
         try:
             completion = client.chat.completions.create(
                 model=model_name,
                 messages=messages_payload,
-                temperature=0.4,
+                temperature=0.5,
                 max_tokens=800
             )
             raw = completion.choices[0].message.content
             cleaned = clean_think_tags(raw)
             if cleaned:
                 return cleaned
-        except Exception:
+        except Exception as e:
+            last_error = str(e)
+            print(f"Failed model {model_name}: {e}")
             continue
-    return "يا أهلاً بحضرتك نورتنا بشركة البرج المتألق ✨ تفضل، شلون أگدر أساعدك اليوم؟"
 
-# 4. المعالجات
+    # في حال فشل كل النماذج يظهر تفصيل الخطأ للتصحيح بدلاً من الرسالة الثابتة
+    return f"عذراً، حدث خطأ فني أثناء المعالجة ({last_error[:80]}). يرجى المحاولة مرة ثانية."
+
+# 4. معالجات الأحداث
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_conversations[user_id] = []
@@ -109,8 +127,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         "يا أهلاً وسهلاً بحضرتك نورتنا في شركة **البرج المتألق** ✨\n"
         "*(للمقاولات العامة • الاستثمارات العقارية • التجارة العامة • النقل العام)*\n\n"
-        "يسعدنا جداً استقبال استفساراتك وخدمتك على مدار الساعة.\n"
-        "تفضل بكتابة سؤالك مباشرة، وسأجيبك بكل سرور 👇"
+        "يسعدنا استقبال استفساراتك وخدمتك. تفضل بكتابة سؤالك مباشرة 👇"
     )
     target = update.message if update.message else update.callback_query.message
     await target.reply_text(welcome_text, reply_markup=get_chat_persistent_keyboard(), parse_mode="Markdown")
@@ -172,7 +189,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📩 استفسار جديد من زبون\n\n"
                 f"👤 الاسم: {user.full_name}\n"
                 f"🔗 اليوزر: {username_info}\n"
-                f"🆔 الآيدي: {user.id}\n\n"
+                f"🆔 الآيدي: `{user.id}`\n\n"
                 f"💬 سؤال الزبون:\n{user_text}\n\n"
                 f"🤖 رد السكرتيرة:\n{reply}\n\n"
                 f"👉 مراسلة الزبون: {user_link}"
