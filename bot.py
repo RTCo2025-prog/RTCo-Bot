@@ -1,11 +1,12 @@
 """
 نظام السكرتيرة الذكية - شركة البرج المتألق
 الملف: bot.py
-الإصدار المصحح: كشف النماذج الديناميكي + حل مشكلة الرد الثابت
+التحديث: تقرير إداري ملخص وجوهري بعد 15 دقيقة خمول + إصلاح فحص المفتاح
 """
 
 import os
 import re
+import asyncio
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from groq import Groq
@@ -25,9 +26,13 @@ GROQ_API_KEY = "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"
 ADMIN_CHAT_ID = "7822645247"
 
 client = Groq(api_key=GROQ_API_KEY)
-user_conversations = {}
 
-# 2. الأزرار والقوائم التفاعلية
+# ذاكرة المحادثة لكل مستخدم
+user_conversations = {}
+# مهام التوقيت لمراقبة الـ 15 دقيقة
+inactivity_timers = {}
+
+# 2. الأزرار والقوائم
 def get_chat_persistent_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📋 معلومات التواصل وأقسام الشركة", callback_data="show_company_menu")]
@@ -57,17 +62,16 @@ def get_back_to_menu_keyboard():
         [InlineKeyboardButton("🔙 رجوع لأقسام الشركة", callback_data="show_company_menu")]
     ])
 
-# 3. تعليمات الذكاء الاصطناعي
+# 3. توجيهات الذكاء الاصطناعي
 SYSTEM_INSTRUCTION = """
 أنتِ السكرتيرة التنفيذية والمستشارة الفنية لشركة "البرج المتألق للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام".
 أسلوبكِ: أنثوي، لبق، راقٍ، ومهذب جداً بلهجة عراقية محترمة وبيئة أعمال راقية (مثل: "يا أهلاً وسهلاً بحضرتك"، "تدلل/تدللين"، "يسعدنا نخدمك").
 
 قواعد الإجابة:
-1. أجيبي فوراً وبشكل مفصل ومباشر عن سؤال الزبون باللغة العربية.
-   - إذا سأل عن مواد البناء (مثل الطابوق، السمنت، الحديد، التشطيبات): اشرحي الأنواع والاستخدامات الهندسية ومميزاتها بدقة ومعلومات وافية ومفيدة.
+1. أجيبي فوراً وبشكل مفصل ومباشر عن سؤال الزبون باللغة العربية مع تقديم معلومات هندسية وفنية وافية ومفيدة.
 2. لا تضعي أرقام هواتف أو إيميل أو روابط في نهاية الأجوبة العادية لأن الزر الدائم موجود بالأسفل.
 3. اذكري أرقام التواصل فقط إذا طلبها الزبون بصراحة.
-4. حافظي على ترابط الحديث إذا كان السؤال تكميلياً لما قبله.
+4. حافظي على ترابط الحديث وسياق الجلسة بشكل متسلسل.
 """
 
 def clean_think_tags(text: str) -> str:
@@ -78,25 +82,22 @@ def clean_think_tags(text: str) -> str:
     return text.strip()
 
 def get_available_models():
-    """جلب قائمة الموديلات الصالحة للاستخدام تلقائياً من سيرفر Groq"""
+    """جلب النماذج المتاحة من Groq"""
     try:
         models_data = client.models.list().data
         valid_models = []
         for m in models_data:
             mid = m.id.lower()
-            # استبعاد نماذج الصوت والتفكير والصور
             if any(x in mid for x in ["whisper", "guard", "r1", "deepseek", "vision", "qwen-qwq"]):
                 continue
             valid_models.append(m.id)
         if valid_models:
             return valid_models
-    except Exception as e:
-        print(f"Error fetching models: {e}")
-    # نماذج احتياطية في حال تعذر القائمة
-    return ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "mixtral-8x7b-32768"]
+    except Exception:
+        pass
+    return ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
 
 def generate_ai_reply(messages_payload):
-    """توليد الرد الحقيقي وتجربة النماذج المتاحة فعلياً"""
     models = get_available_models()
     last_error = ""
     for model_name in models:
@@ -113,21 +114,90 @@ def generate_ai_reply(messages_payload):
                 return cleaned
         except Exception as e:
             last_error = str(e)
-            print(f"Failed model {model_name}: {e}")
             continue
+    return f"عذراً، يرجى التأكد من صلاحية مفتاح الربط في السيرفر: {last_error[:60]}"
 
-    # في حال فشل كل النماذج يظهر تفصيل الخطأ للتصحيح بدلاً من الرسالة الثابتة
-    return f"عذراً، حدث خطأ فني أثناء المعالجة ({last_error[:80]}). يرجى المحاولة مرة ثانية."
+# 4. معالجة الإشعار بعد 15 دقيقة خمول
+async def session_timeout_reporter(user_id: int, user_info: dict, context: ContextTypes.DEFAULT_TYPE):
+    """انتظار 15 دقيقة (900 ثانية) بعد آخر رسالة ثم تلخيص وإرسال التقرير للإدارة"""
+    await asyncio.sleep(900)
+    
+    if user_id not in user_conversations or not user_conversations[user_id]:
+        return
 
-# 4. معالجات الأحداث
+    history = user_conversations[user_id]
+    
+    # تفريغ المحادثة كنص متسلسل
+    dialog_text = ""
+    for msg in history:
+        sender = "الزبون" if msg["role"] == "user" else "السكرتيرة"
+        dialog_text += f"{sender}: {msg['content']}\n"
+
+    # استخدام Groq لإنشاء ملخص تنفيذي للمحادثة
+    summary_prompt = f"""
+قم بتحليل محادثة خدمة العملاء التالية لشركة 'البرج المتألق':
+{dialog_text}
+
+استخرج النقاط بدقة وبصيغة تقرير رسمي مختصر جداً:
+1. ماذا كان يحتاج الزبون بالتحديد؟ (الطلب الجوهري)
+2. كيف تمت إجابته والحل المقدم له؟
+3. الإجراء المقترح للمتابعة من الإدارة (إن وجد).
+"""
+    try:
+        summary_res = client.chat.completions.create(
+            model=get_available_models()[0],
+            messages=[{"role": "user", "content": summary_prompt}],
+            temperature=0.3,
+            max_tokens=400
+        )
+        executive_summary = clean_think_tags(summary_res.choices[0].message.content)
+    except Exception:
+        executive_summary = "تعذر توليد الملخص الآلي، يرجى الاطلاع على نص المحادثة الكامل أدناه."
+
+    user_link = f"tg://user?id={user_id}"
+    username_info = f"@{user_info['username']}" if user_info.get("username") else "لا يوجد يوزر"
+
+    report_message = (
+        f"📊 **تقرير جلسة استفسار مكتملة (بعد 15 دقيقة خمول)**\n\n"
+        f"👤 **العميل:** [{user_info['name']}]({user_link})\n"
+        f"🔗 **اليوزر:** {username_info}\n"
+        f"🆔 **الآيدي:** `{user_id}`\n\n"
+        f"📌 **الملخص الجوهري للمحادثة:**\n{executive_summary}\n\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"📝 **نص المحادثة المجمعة بالكامل:**\n{dialog_text[:2000]}\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"👉 [اضغط هنا لفتح محادثة مباشرة مع العميل]({user_link})"
+    )
+
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_CHAT_ID,
+            text=report_message,
+            parse_mode="Markdown",
+            disable_web_page_preview=True
+        )
+    except Exception:
+        pass
+
+    # مسح الذاكرة بعد تصدير التقرير لبدء جلسة جديدة مستقبلاً
+    user_conversations.pop(user_id, None)
+    inactivity_timers.pop(user_id, None)
+
+# 5. معالجات الأوامر والرسائل
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_conversations[user_id] = []
     
+    # إلغاء أي مؤقت سابق إن وجد
+    if user_id in inactivity_timers:
+        inactivity_timers[user_id].cancel()
+        inactivity_timers.pop(user_id, None)
+
     welcome_text = (
         "يا أهلاً وسهلاً بحضرتك نورتنا في شركة **البرج المتألق** ✨\n"
         "*(للمقاولات العامة • الاستثمارات العقارية • التجارة العامة • النقل العام)*\n\n"
-        "يسعدنا استقبال استفساراتك وخدمتك. تفضل بكتابة سؤالك مباشرة 👇"
+        "يسعدنا استقبال استفساراتك وخدمتك على مدار الساعة.\n"
+        "تفضل بكتابة سؤالك مباشرة 👇"
     )
     target = update.message if update.message else update.callback_query.message
     await target.reply_text(welcome_text, reply_markup=get_chat_persistent_keyboard(), parse_mode="Markdown")
@@ -170,8 +240,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_conversations[user_id] = []
 
     user_conversations[user_id].append({"role": "user", "content": user_text})
-    if len(user_conversations[user_id]) > 6:
-        user_conversations[user_id] = user_conversations[user_id][-6:]
+    if len(user_conversations[user_id]) > 10:
+        user_conversations[user_id] = user_conversations[user_id][-10:]
 
     payload = [{"role": "system", "content": SYSTEM_INSTRUCTION}] + user_conversations[user_id]
 
@@ -180,25 +250,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(reply, reply_markup=get_chat_persistent_keyboard())
 
-    # إشعار الإدارة الفوري
-    if ADMIN_CHAT_ID:
-        try:
-            user_link = f"tg://user?id={user.id}"
-            username_info = f"@{user.username}" if user.username else "لا يوجد يوزر"
-            admin_msg = (
-                f"📩 استفسار جديد من زبون\n\n"
-                f"👤 الاسم: {user.full_name}\n"
-                f"🔗 اليوزر: {username_info}\n"
-                f"🆔 الآيدي: `{user.id}`\n\n"
-                f"💬 سؤال الزبون:\n{user_text}\n\n"
-                f"🤖 رد السكرتيرة:\n{reply}\n\n"
-                f"👉 مراسلة الزبون: {user_link}"
-            )
-            await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_msg, disable_web_page_preview=True)
-        except Exception:
-            pass
+    # إعادة ضبط مؤقت الـ 15 دقيقة مع كل رسالة جديدة
+    if user_id in inactivity_timers:
+        inactivity_timers[user_id].cancel()
 
-# 5. خادم الويب للـ Keep-Alive
+    user_info = {
+        "name": user.full_name,
+        "username": user.username
+    }
+    # بدء عداد الخمول لمدة 15 دقيقة
+    inactivity_timers[user_id] = asyncio.create_task(
+        session_timeout_reporter(user_id, user_info, context)
+    )
+
+# 6. سيرفر فحص الصحة لتوافق Render و UptimeRobot
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -214,6 +279,7 @@ def start_server():
     except Exception:
         pass
 
+# 7. نقطة الانطلاق
 if __name__ == '__main__':
     threading.Thread(target=start_server, daemon=True).start()
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
