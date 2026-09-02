@@ -1,20 +1,49 @@
+"""
+نظام السكرتيرة الذكية - شركة البرج المتألق
+الملف: bot.py
+التحديث: رسالة أولى ترحيبية مميزة + زر موحد (معلومات التواصل وأقسام الشركة) تحت كل رد
+"""
+
 import os
 import re
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from groq import Groq
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
-# 1. إعداد المفاتيح والمعرفات
+# =============================================================
+# 1. إعدادات الثوابت ومفاتيح التوصيل البرمجي
+# =============================================================
 TELEGRAM_BOT_TOKEN = "8624313127:AAHtPRy05UNfL5_6Cv1ySiqfcT5eqRCTks0"
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "gsk_ضع_مفتاح_جروك_هنا"
 ADMIN_CHAT_ID = "7822645247"
 
 client = Groq(api_key=GROQ_API_KEY)
 
-# 2. القوائم والأزرار التفاعلية
-def get_main_keyboard():
+# ذاكرة سياق المحادثة لكل مستخدم
+user_conversations = {}
+
+# =============================================================
+# 2. القوائم والأزرار التفاعلية (Keyboards)
+# =============================================================
+
+# الزر الدائم الذي يظهر أسفل كل رد للزبون
+def get_chat_persistent_keyboard() -> InlineKeyboardMarkup:
+    keyboard = [
+        [InlineKeyboardButton("📋 معلومات التواصل وأقسام الشركة", callback_data="show_company_menu")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+# قائمة الأقسام ومعلومات التواصل الموسعة
+def get_company_sections_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton("🏗️ المقاولات والإنشاءات", callback_data="dept_contracting"),
@@ -27,46 +56,44 @@ def get_main_keyboard():
         [
             InlineKeyboardButton("📞 أرقام الهواتف المباشرة", callback_data="dept_contact"),
             InlineKeyboardButton("🌐 منصات التواصل والموقع", callback_data="dept_social")
+        ],
+        [
+            InlineKeyboardButton("🔙 إغلاق القائمة", callback_data="hide_menu")
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def get_back_keyboard():
+def get_back_to_menu_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
-        [InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="go_main")]
+        [InlineKeyboardButton("🔙 رجوع لأقسام الشركة", callback_data="show_company_menu")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# 3. توجيهات وهوية السكرتيرة الذكية
+# =============================================================
+# 3. توجيهات وهوية الذكاء الاصطناعي (System Prompt)
+# =============================================================
 SYSTEM_INSTRUCTION = """
 # الهوية والدور الأساسي
 أنتِ السكرتيرة التنفيذية والمستشارة الرقمية لـ "شركة البرج المتألق للمقاولات العامة والتجارة العامة والنقل العام والاستثمارات العقارية".
-أسلوبكِ: أنثوي، لبق، راقٍ، مهذب جداً، وواثق، وتتحدثين بلهجة عراقية محترمة وبيئة أعمال راقية (مثل: "يا أهلاً وسهلاً بحضرتك"، "نورتنا وحياك الله"، "تدلل/تدللين"، "يسعدنا جداً نخدمك").
+أسلوبكِ: أنثوي، لبق، راقٍ، مهذب جداً، وواثق، وتتحدثين بلهجة عراقية محترمة وبيئة أعمال راقية (مثل: "يا أهلاً وسهلاً بحضرتك"، "تدلل/تدللين"، "يسعدنا جداً نخدمك").
 
 ---
 
-# سياسة الرد والشرح للزبون:
-- أجيبي باللغة العربية فقط ومباشرة دون أي مقدمات أو تحليلات باللغة الإنجليزية.
-- اشرحي إمكانيات الشركة باحترافية وتفصيل مفيد بحسب السؤال:
-  * إذا سأل عن البناء/المقاولات: وضّحي أن الشركة تنفذ الهيكل الإنشائي والتشطيبات الكاملة الديلوكس والتصاميم والديكورات مع إشراف هندسي وضمان شامل.
-  * إذا سأل عن الاستثمار العقاري: وضّحي توفير الفرص والأراضي والعقارات الاستثمارية ذات العائد المالي الممتاز وإدارة وتطوير المشاريع.
-  * إذا سأل عن التجارة والتوريد: اشرحي توريد المواد الإنشائية ومستلزمات البناء بأسعار تنافسية ومواصفات معتمدة.
-  * إذا سأل عن النقل: وضّحي توفير حلول النقل البري وإدارة الشحنات والأساطيل بأمان والتزام بالوقت.
-  * بالنسبة للأسعار: اشرحي أنها تعتمد على المساحة والمواصفات واطلبي رقم الهاتف والاسم ليقوم المهندس المختص بالتواصل وتقديم كشف موقعي دقيق.
-
----
-
-# بيانات التواصل الرسمية:
-- الهواتف: 009647868006699 | 009647737006699
-- الموقع الإلكتروني: https://linktr.ee/RTCo2025
-- البريد الإلكتروني: RTCo2025@gmail.com
-- تيليجرام: https://t.me/RTCo2025
-- إنستغرام: https://www.instagram.com/rtco2025
-- تيك توك: https://www.tiktok.com/@rtco2025
-- فيسبوك: https://www.facebook.com/rtco2025
+# ضوابط الردود:
+1. **الإجابة المباشرة فقط**:
+   - أجيبي بدقة وبشكل فني واحترافي عن سؤال العميل فقط.
+   - لا تضعي أرقام هواتف، ولا بريداً إلكترونياً، ولا روابط في نهاية كل رسالة؛ لأن الزبون لديه زر تفاعلي دائم بالأسفل مخصص لذلك.
+2. **متى تُذكر أرقام وبيانات الشركة كتابياً؟**:
+   - فقط إذا سأل العميل عنها بنص مباشر وصريح (مثل: "انطوني الرقم"، "شلون اتصل بيكم؟").
+3. **سياق الحوار المستمر**:
+   - اربطي الإجابات ببعضها بسلاسة وطبيعية إذا سأل سؤالاً تكميلياً معتمداً على كلامك السابق دون الحاجة لتكرار التحيات والمقدمات.
+4. **الأسعار**:
+   - وضحي أنها ترتبط بالمواصفات الفنية والمساحة، ورحبي بتزويدك بتفاصيل طلبه لترتيب كشف هندسي دقيق.
 """
 
-# دالة لتنظيف أي نصوص تفكير داخلية
+# =============================================================
+# 4. دوال التنظيف واختيار النماذج
+# =============================================================
 def clean_think_tags(text: str) -> str:
     if not text:
         return ""
@@ -74,8 +101,7 @@ def clean_think_tags(text: str) -> str:
     text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
     return text.strip()
 
-# اختيار أفضل نموذج محادثة نشط وتخطي نماذج التفكير
-def get_clean_model():
+def get_clean_model() -> str:
     try:
         models = client.models.list()
         for m in models.data:
@@ -89,73 +115,92 @@ def get_clean_model():
 
 CURRENT_MODEL = get_clean_model()
 
-# 4. أمر البداية
+# =============================================================
+# 5. معالجات الأحداث (الأوامر والأزرار والرسائل)
+# =============================================================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_text = (
-        "أهلاً وسهلاً بحضرتك نورتنا بشركة **البرج المتألق** للمقاولات العامة والاستثمارات العقارية والتجارة والنقل ✨\n\n"
-        "تسعدني خدمتك والإجابة عن كل استفساراتك. تگدر تختار أحد الأقسام من الأزرار أدناه، أو تكتب سؤالك بالتفصيل هنا مباشرة 👇"
+    user_id = update.effective_user.id
+    user_conversations[user_id] = []  # تصفير الذاكرة لبدء جلسة جديدة
+    
+    # أول رسالة مميزة، أنيقة، ومختصرة للشركة
+    first_message = (
+        "يا أهلاً وسهلاً بحضرتك نورتنا في **شركة البرج المتألق** ✨\n"
+        "*(للمقاولات العامة • الاستثمارات العقارية • التجارة العامة • النقل العام)*\n\n"
+        "يسعدنا جداً استقبال استفساراتك وخدمتك على مدار الساعة.\n"
+        "تفضل بكتابة سؤالك مباشرة، وسأجيبك بكل سرور 👇"
     )
-    if update.message:
-        await update.message.reply_text(welcome_text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
-    elif update.callback_query:
-        await update.callback_query.message.reply_text(welcome_text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
+    
+    target = update.message if update.message else update.callback_query.message
+    await target.reply_text(
+        first_message,
+        reply_markup=get_chat_persistent_keyboard(),
+        parse_mode="Markdown"
+    )
 
-# 5. معالجة الأزرار التفاعلية
 async def handle_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
 
-    if data == "go_main":
-        await start(update, context)
+    if data == "show_company_menu":
+        menu_text = (
+            "🏛️ **شركة البرج المتألق**\n"
+            "يرجى اختيار القسم للاطلاع على تفاصيله أو بيانات الاتصال:"
+        )
+        await query.message.reply_text(
+            menu_text,
+            reply_markup=get_company_sections_keyboard(),
+            parse_mode="Markdown"
+        )
+        return
+
+    elif data == "hide_menu":
+        await query.message.delete()
         return
 
     text_response = ""
-
     if data == "dept_contracting":
         text_response = (
             "🏗️ **قسم المقاولات العامة والإنشاءات:**\n\n"
-            "نقدم حلولاً هندسية متكاملة تشمل:\n"
-            "• أعمال الهيكل الإنشائي والخرسانات بدقة هندسية عالية.\n"
-            "• التشطيبات الحديثة والمتكاملة (تسليم مفتاح ديلوكس).\n"
-            "• التصاميم المعمارية والإنشائية والديكورات الداخلية.\n"
-            "• إشراف كادر هندسي مختص خطوة بخطوة مع ضمان الجودة.\n\n"
-            "💬 *تگدر تكتب تفاصيل مساحة موقعك أو طلبك هنا، ويسعدني إجابتك فوراً.*"
+            "• تنفيذ الهيكل الإنشائي والخرساني بدقة هندسية.\n"
+            "• تشطيبات متكاملة ديلوكس وتسليم مفتاح.\n"
+            "• تصاميم معمارية وديكورات داخلية عصرية.\n"
+            "• إشراف كادر هندسي معتمد وضمان شامل للجودة."
         )
     elif data == "dept_realestate":
         text_response = (
             "🏢 **قسم الاستثمارات والتطوير العقاري:**\n\n"
-            "• استشارات ودراسات جدوى اقتصادية للمشاريع العقارية.\n"
-            "• تسويق، إدارة، وتطوير العقارات والأراضي السكنية والتجارية.\n"
-            "• فرص استثمارية مدروسة تحقق أعلى عائد وقيمة مضافة لأموالك.\n\n"
-            "💬 *حاب تستفسر عن بيع، شراء، أو استثمار معين؟ اكتبلي التفاصيل وبخدمتك.*"
+            "• دراسات جدوى واستشارات عقارية متخصصة.\n"
+            "• فرص استثمارية وأراضٍ وعقارات ذات عائد استثماري ممتاز.\n"
+            "• إدارة وتطوير وتسويق المشاريع العقارية."
         )
     elif data == "dept_trade":
         text_response = (
             "📦 **قسم التجارة العامة والتوريدات:**\n\n"
-            "• استيراد وتأمين المواد الإنشائية ومستلزمات البناء عالية الجودة.\n"
-            "• صفقات تجارية وسلاسل إمداد مستقرة للمشاريع والشركات.\n"
-            "• أسعار تنافسية مع الالتزام التام بالمواصفات القياسية المعتمدة."
+            "• استيراد وتأمين المواد الإنشائية ومستلزمات البناء.\n"
+            "• صفقات تجارية وسلاسل إمداد موثوقة للشركات والمشاريع.\n"
+            "• أسعار تنافسية مطابقة لأعلى المواصفات القياسية."
         )
     elif data == "dept_transport":
         text_response = (
             "🚚 **قسم النقل العام والخدمات اللوجستية:**\n\n"
-            "• حلول النقل البري للبضائع والمواد بين المحافظات.\n"
-            "• إدارة أساطيل النقل وتأمين مسارات آمنة ومنتظمة.\n"
-            "• دقة في المواعيد ومرونة في تلبية الاحتياجات اللوجستية."
+            "• نقل بري آمن وموثوق للمواد والبضائع.\n"
+            "• إدارة الأساطيل وتأمين المسارات بين المحافظات.\n"
+            "• التزام تام بالمواعيد وسرعة في التوصيل."
         )
     elif data == "dept_contact":
         text_response = (
-            "📞 **قنوات الاتصال المباشرة:**\n\n"
+            "📞 **أرقام الهواتف وقنوات الاتصال:**\n\n"
             "▫️ هاتف: `009647868006699`\n"
             "▫️ هاتف: `009647737006699`\n"
+            "▫️ هاتف الإدارة: `07805509298`\n"
             "▫️ البريد الإلكتروني: RTCo2025@gmail.com\n\n"
-            "مكتبنا وكادرنا الفني والإداري بخدمتكم دوماً."
+            "يسعدنا تواصلكم واستقبالكم دائماً."
         )
     elif data == "dept_social":
         text_response = (
-            "🌐 **منصاتنا وحساباتنا الرسمية:**\n\n"
-            "• الموقع الإلكتروني: https://linktr.ee/RTCo2025\n"
+            "🌐 **منصاتنا وموقعنا الرسمي:**\n\n"
+            "• الموقع الإلكتروني: www.alburjmutalaliq.co\n"
             "• تيليجرام: https://t.me/RTCo2025\n"
             "• إنستغرام: https://www.instagram.com/rtco2025\n"
             "• تيك توك: https://www.tiktok.com/@rtco2025\n"
@@ -164,49 +209,61 @@ async def handle_button_click(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await query.message.reply_text(
         text_response,
-        reply_markup=get_back_keyboard(),
+        reply_markup=get_back_to_menu_keyboard(),
         parse_mode="Markdown"
     )
 
-# 6. معالجة الرسائل وإرسال الإشعار للإدارة مع رابط الزبون
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global CURRENT_MODEL
     user = update.effective_user
     user_text = update.message.text
+    user_id = user.id
+
+    # إدارة الذاكرة وسياق الحوار
+    if user_id not in user_conversations:
+        user_conversations[user_id] = []
+
+    user_conversations[user_id].append({"role": "user", "content": user_text})
+
+    # الحفاظ على آخر 6 رسائل للسرعة وتكامل السياق
+    if len(user_conversations[user_id]) > 6:
+        user_conversations[user_id] = user_conversations[user_id][-6:]
+
+    messages_payload = [{"role": "system", "content": SYSTEM_INSTRUCTION}] + user_conversations[user_id]
 
     try:
         completion = client.chat.completions.create(
             model=CURRENT_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_INSTRUCTION},
-                {"role": "user", "content": user_text}
-            ],
-            temperature=0.5,
+            messages=messages_payload,
+            temperature=0.4,
             max_tokens=800
         )
         raw_reply = completion.choices[0].message.content
         reply = clean_think_tags(raw_reply)
         if not reply:
-            reply = "أهلاً وسهلاً بحضرتك نورتنا في شركة البرج المتألق ✨ تفضل، شلون أگدر أساعدك اليوم؟"
-        await update.message.reply_text(reply, reply_markup=get_back_keyboard())
+            reply = "تفضل حضرتك، شلون أگدر أساعدك؟"
     except Exception:
         CURRENT_MODEL = get_clean_model()
         completion = client.chat.completions.create(
             model=CURRENT_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_INSTRUCTION},
-                {"role": "user", "content": user_text}
-            ],
-            temperature=0.5,
+            messages=messages_payload,
+            temperature=0.4,
             max_tokens=800
         )
         raw_reply = completion.choices[0].message.content
         reply = clean_think_tags(raw_reply)
         if not reply:
-            reply = "أهلاً وسهلاً بحضرتك نورتنا في شركة البرج المتألق ✨ تفضل، شلون أگدر أساعدك اليوم؟"
-        await update.message.reply_text(reply, reply_markup=get_back_keyboard())
+            reply = "تفضل حضرتك، شلون أگدر أساعدك؟"
 
-    # إشعار الإدارة برابط مباشر للتواصل مع الزبون
+    user_conversations[user_id].append({"role": "assistant", "content": reply})
+
+    # إرسال الرد المباشر للزبون مع الزر التفاعلي الدائم في النهاية
+    await update.message.reply_text(
+        reply,
+        reply_markup=get_chat_persistent_keyboard()
+    )
+
+    # إرسال إشعار للإدارة فوراً مع رابط محادثة الزبون
     if ADMIN_CHAT_ID:
         user_link = f"tg://user?id={user.id}"
         username_text = f"@{user.username}" if user.username else "لا يوجد (استخدم الرابط المباشر)"
@@ -230,7 +287,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-# 7. سيرفر الاستضافة لـ Render
+# =============================================================
+# 6. سيرفر فحص الصحة لتوافق الاستضافة (Keep-Alive)
+# =============================================================
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -246,6 +305,9 @@ def start_server():
     except Exception:
         pass
 
+# =============================================================
+# 7. نقطة الانطلاق والتشغيل
+# =============================================================
 if __name__ == '__main__':
     threading.Thread(target=start_server, daemon=True).start()
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
