@@ -22,7 +22,7 @@ from telegram.ext import (
 
 # 1. المفاتيح والمعرفات
 TELEGRAM_BOT_TOKEN = "8624313127:AAHtPRy05UNfL5_6Cv1ySiqfcT5eqRCTks0"
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 ADMIN_CHAT_ID = "7822645247"
 
 client = Groq(api_key=GROQ_API_KEY)
